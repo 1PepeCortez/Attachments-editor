@@ -76,7 +76,7 @@ mp.events.add('render', () => {
     });
 });
 
-// TECLAS
+// KEYS
 
 var keyState = false;
 var keyPressed = null;

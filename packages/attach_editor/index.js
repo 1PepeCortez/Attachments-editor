@@ -31,10 +31,12 @@ mp.events.addCommand('attach', (player, _, object, body) => {
 	let len = objectsList.length; 
 
 	if(object == undefined) {
+		player.outputChatBox('!{#ff0000}/attach [ID object] [ID body part]');
+
 		let msg = '';
 
 		for(let i = 0; i < len; i++) {
-			msg += objectsList[i]+ ' | ';
+			msg +=  '(' +i+ ')'+ objectsList[i]+ ' | ';
 		}
 		player.outputChatBox(msg);
 		return;
