@@ -8,10 +8,7 @@ let player = mp.players.local;
 
 mp.events.add('attachObject', (object, bodyPart) => {
 
-    if(editObject != null) {
-        mp.gui.chat.push("You are already editting an object!");
-        return;
-    }
+    if(editObject != null) return mp.gui.chat.push("You are already editting an object!");
 
     editObject = mp.objects.new(object, player.position, {
         rotation: new mp.Vector3(0, 0, 0),
@@ -28,6 +25,8 @@ mp.events.add('attachObject', (object, bodyPart) => {
     objInfo.rx = 0.0;
     objInfo.ry = 0.0;
     objInfo.rz = 0.0;
+
+    mp.players.local.freezePosition(true);
 
     setTimeout(function() {
 
@@ -217,6 +216,22 @@ mp.keys.bind(0x20, !1, function() { // SPACE
 
     editObject.destroy();
     editObject = null;
+});
+
+mp.keys.bind(0x08, !1, function() { // BACKSPACE
+
+    if(editObject == null || mp.gui.cursor.visible) return;
+
+    objInfo.x = 0.0;
+    objInfo.y = 0.0;
+    objInfo.z = 0.0;
+    objInfo.rx = 0.0; 
+    objInfo.ry = 0.0;
+    objInfo.rz = 0.0;
+
+    editAttachObject();
+
+    mp.gui.chat.push('RESET OBJECT');
 });
 
 //

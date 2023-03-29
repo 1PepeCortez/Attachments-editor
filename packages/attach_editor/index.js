@@ -1,70 +1,29 @@
 const fs = require('fs');
 
-const objectsList = [
-	'prop_fishing_rod_01',
-	'prop_ld_fireaxe'
-];
-
 const bodyParts = [
- 	{
-		 name: 'Skel root',
-		 id: 0
-	},
-
-	{
-		name: 'Right hand',
-		id: 57005
-	},
-
-	{
-		name: 'Left hand',
-		id: 18905
-	},
-
-	{
-		name: 'Head',
-		id: 12844
-	}
+ 	{ name: 'Skel root', id: 0 },
+	{ name: 'Right hand', id: 57005 },
+	{ name: 'Left hand', id: 18905 },
+	{ name: 'Head', id: 12844 }
 ];
 
 mp.events.addCommand('attach', (player, _, object, body) => {
-	let len = objectsList.length; 
 
 	if(object == undefined) {
-		player.outputChatBox('!{#ff0000}/attach [ID object] [ID body part]');
-
-		let msg = '';
-
-		for(let i = 0; i < len; i++) {
-			msg +=  '(' +i+ ')'+ objectsList[i]+ ' | ';
-		}
-		player.outputChatBox(msg);
-		return;
+		return player.outputChatBox('!{#ff0000}/attach [object_name] [body_part_id]');
 	}
-
-	let id = parseInt(object);
-	if(id < 0 || id > len) {
-		return;
-	}
-
-	let lenBody = bodyParts.length;
 
 	if(body == undefined) {
-		let msg = '';
-
-		for(let i = 0; i < lenBody; i++) {
-			msg += '(' +i+ ')'+ bodyParts[i].name+ ' | ';
-		}
-		player.outputChatBox(msg);
+		bodyParts.forEach(e => {
+			player.outputChatBox(e.name+ ' - ' +e.id);
+		});
 		return;
 	}
 
-	let bodyID = parseInt(body);
-	if(bodyID < 0 || bodyID > lenBody) {
-		return;
-	}
+	const bodyID = parseInt(body);
+	if(isNaN(bodyID)) return;
 
-	player.call("attachObject", [ objectsList[id], bodyParts[bodyID].id ]);
+	player.call("attachObject", [ object, bodyID ]);
 });
 
 mp.events.add('finishAttach', (player, object) => {
