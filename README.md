@@ -4,7 +4,7 @@
 - Camera focus on the bone you select.
 - Added more keys to edit the object.
 - Menu to edit or remove objects that were already placed.
-- Object information save on attachments.txt on serverside.
+- Object information save on *attachments.txt* on serverside.
 
 ## Keys
 

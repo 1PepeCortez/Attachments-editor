@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <!-- BONES -->
+    <script src="./bones.js"></script>
+
+    <!-- CSS -->
+    <style>
+        @import url(https://fonts.googleapis.com/css?family=Open+Sans);
+        
+        body {
+            font-family: 'Open Sans',serif;
+        }
+
+        #menuGeneral {
+            background-color: #01161E;
+            border-radius: 10px;
+            padding: 5px; 
+            width: 50%;
+            margin-right: auto;
+            margin-left: auto;
+            margin-top: 50px;
+            text-align: center;
+        }
+
+        #menuEdit {
+            background-color: #01161E;
+            border-radius: 10px;
+            padding: 5px; 
+            width: 50%;
+            margin-right: auto;
+            margin-left: auto;
+            margin-top: 50px;
+            text-align: center;
+            display: none;
+        }
+
+        .elementTitle {
+            background-color: #96e565;
+            padding: 10px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .divGeneral {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        button {
+            padding: 10px;
+            margin-right: 4px;
+            border-radius: 10px;
+            background-color: #044a65;
+            color: white;
+            border: transparent;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            transform: scale(1.10);
+        }
+
+        #editInfo {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background-color: #01161E;
+            padding: 10px;
+            color: white;
+            border-radius: 10px;
+            font-weight: bold;
+            width: 20%;
+            display: none;
+        }
+
+        #editorMode, #objectCoords, #objectRot {
+            color: #ff5f5f;
+        }
+
+        table {
+            text-align: center;
+            color: white;
+            width: 98%;
+        }
+
+        table td {
+            border: 1px solid #0f21c5;
+            background-color: #055a7b;
+        }
+    </style>
+
+</head>
+<body>
+
+    <!-- ATTACH BONES -->
+    <div id="menuGeneral">
+    </div>
+
+    <!-- ATTACH EDIT -->
+    <div id="menuEdit">
+    </div>
+
+    <!-- ATTACH INFO -->
+    <div id="editInfo">
+        Editting: <span id="editorMode">MOVEMENT</span>
+        <hr>
+        <span style="color: #fff167">UP | DOWN</span> · X
+        <br>
+        <span style="color: #fff167">RIGHT | LEFT</span> · Y
+        <br>
+        <span style="color: #fff167">PageUP | PageDown</span> · Z
+        <br>
+        <span style="color: #fff167">Shift</span> · Speed
+        <br>
+        <span style="color: #fff167">AltLeft + X / Y / Z</span> · Reset coord
+        <br>
+        <br>
+        <span style="color: #fff167">R</span> · Change mode
+        <br>
+        <span style="color: #fff167">L</span> · Change fov
+        <br>
+        <span style="color: #fff167">Enter</span> · Finish
+        <br>
+        <span style="color: #fff167">Back</span> · Cancel
+        <br>
+        <span style="color: #fff167">Space</span> · Reset
+        <br>
+        <br>
+        Coords: <span id="objectCoords"></span>
+        <br>
+        Rot: <span id="objectRot">0.00 | 0.00 | 0.00</span>
+    </div>
+
+    <!-- JAVASCRIPT -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function(event) {
+
+            var finalStr = '<p><span class="elementTitle">COMON BONES</span></p><hr><p>';
+
+            bonesCommon.forEach((e, index) => {
+                finalStr += `<button onclick="selectCommonBone(${index})">${e.name}</button>`;
+            });
+
+            finalStr += '</p><hr>';
+
+            //
+
+            finalStr += '<div class="divGeneral"><p><span class="elementTitle">GENERAL BONES</span></p><hr><p>';
+
+            bonesGeneral.forEach((e, index) => {
+                finalStr += `<button onclick="selectGeneralBone(${index})">${e.name}</button>`;
+            });
+            finalStr += '</p></div>';
+
+            document.getElementById('menuGeneral').innerHTML = finalStr;
+        });
+
+        function setupAttachEditor() {
+            document.getElementById('menuGeneral').style.display = 'block';
+            document.getElementById('editInfo').style.display = 'none';
+            document.getElementById('menuEdit').style.display = 'none';
+
+            changeModeEditor('MOVEMENT');
+
+            document.getElementById('objectCoords').innerHTML = `0.00 | 0.00 | 0.00`;
+            document.getElementById('objectRot').innerHTML = `0.00 | 0.00 | 0.00`;
+        }
+
+        function selectCommonBone(boneIndex) {
+            document.getElementById('menuGeneral').style.display = 'none';
+            document.getElementById('editInfo').style.display = 'block';
+
+            mp.trigger('startAttachObject', bonesCommon[boneIndex].id, bonesCommon[boneIndex].name);
+        }
+
+        function selectGeneralBone(boneIndex) {
+            document.getElementById('menuGeneral').style.display = 'none';
+            document.getElementById('editInfo').style.display = 'block';
+            
+            mp.trigger('startAttachObject', bonesGeneral[boneIndex].id, bonesGeneral[boneIndex].name);
+        }
+
+        function changeModeEditor(mode) {
+            document.getElementById('editorMode').innerHTML = mode;
+        }
+
+        function updateObjectCoords(x, y, z) {
+            document.getElementById('objectCoords').innerHTML = `${x.toFixed(2)} | ${y.toFixed(2)} | ${z.toFixed(2)}`;
+        }
+
+        function updateObjectRot(rx, ry, rz) {
+            document.getElementById('objectRot').innerHTML = `${rx.toFixed(2)} | ${ry.toFixed(2)} | ${rz.toFixed(2)}`;
+        }
+
+        //
+
+        var objectsEdit = [];
+        function setupListAttachEdit() {
+
+            console.log();
+
+            document.getElementById('menuGeneral').style.display = 'none';
+            document.getElementById('editInfo').style.display = 'none';
+
+            //
+
+            const lenObjects = objectsEdit.length;
+
+            //var finalStr = '<p><span class="elementTitle">ATTACH OBJECTS</span></p><hr>';
+            var finalStr = '';
+
+            finalStr += '<button type="button" id="btnLoad" style="color:#ff813d;">Load from file</button>';
+            finalStr += '<button type="button" onclick="closeObjectList()" style="color:#ff5f5f;">Close window</button>';
+            if(lenObjects > 0) finalStr += `<button type="button" onclick="removeAllObjects()" style="color:#ff5f5f;">Remove all (${lenObjects})</button>`;
+
+            finalStr += '<div class="divGeneral"><table><tbody>';
+
+            objectsEdit.forEach((e, index) => {
+                if(index == 0) finalStr += '<tr>';
+                else if(index % 3 == 0) finalStr += '</tr><tr>';
+
+                finalStr += `<td><p>${e.objectName} <small>(${editSince(e.editDate)})</small><br>`;
+                finalStr += `<span style="color:#fff167;">${e.bodyName}</span></p>`;
+                finalStr += `<button onclick="removeObjectList(${index})" style="color: #ff5f5f;">Remove</button>`;
+                finalStr += `<button onclick="editObjectList(${index})" style="color: #6790ff;">Edit</button>`;
+                finalStr += '</td>';
+            }); 
+
+            if(lenObjects % 3 != 0) finalStr += '</tr>';
+
+            finalStr += '</tbody></table></div>';
+
+            document.getElementById('menuEdit').innerHTML = finalStr;
+            document.getElementById('menuEdit').style.display = 'block';
+        }
+
+        function removeObjectList(index) {
+            mp.trigger('removeObjectAttach', objectsEdit[index].id);
+
+            objectsEdit.splice(index, 1);
+
+            if(objectsEdit.length == 0) return closeObjectList();
+            setupListAttachEdit();
+        }
+
+        function removeAllObjects() {
+            mp.trigger('removeObjectAttach', -1);
+            closeObjectList();
+        }
+
+        function editObjectList(index) {
+            document.getElementById('menuEdit').style.display = 'none';
+            document.getElementById('editInfo').style.display = 'block';
+
+            changeModeEditor('MOVEMENT');
+
+            mp.trigger('editAttachObject', objectsEdit[index].id);
+        }
+
+        function closeObjectList() {
+            document.getElementById('menuEdit').style.display = 'none';
+            mp.trigger('closeEditorAttach');
+        }
+
+        //
+
+        function editSince(date) {
+            const dateNow = Date.now();
+            
+            const dateDif = dateNow - new Date(date);
+
+            const hoursDif = Math.floor(dateDif / (1000 * 60 * 60));
+            const minDif = Math.floor(dateDif / (1000 * 60));
+
+            if(hoursDif == 1)       return `${hoursDif} hour ago`;
+            else if(hoursDif > 0)   return `${hoursDif} hours ago`;
+            else if(minDif == 1)    return `${minDif} min ago`;
+            else if(minDif > 0)     return `${minDif} mins ago`;
+            else                    return 'now';
+        }
+
+    </script>
+</body>
+</html>

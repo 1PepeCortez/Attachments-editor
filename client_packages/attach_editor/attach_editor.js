@@ -1,260 +1,269 @@
+const player = mp.players.local;
 
-let stateName = ['Position', 'Rotation'];
+const stateName = ['Position', 'Rotation'];
+const attachTitleChat = '!{#4dd374}[ATTACH_EDITOR]!{#FFFFFF}';
+
+const keysEditor = {
+    R: 0x52, // CHANGE MODE
+    Enter: 0x0D, // FINISH
+    Back: 0x08, // CANCEL
+    Space: 0x20, // RESET
+    L: 0x4C, // CHANGE FOV
+    TAB: 0x09, // EDIT ATTACH
+};
+
+const keyMovement = {
+    Left: 0x25,
+    UP: 0x26,
+    Right: 0x27,
+    Down: 0x28,
+    PageUp: 0x21,
+    PageDown: 0x22,
+    Shift: 0x10,
+
+    AltLeft: 0xA4,
+    X: 0x58,
+    Y: 0x59,
+    Z: 0x5A,
+};
+
+const MODE_MOVE = 0;
+const MODE_ROT = 1;
+
+const DEFAULT_CAMERA_FOV = 40;
+
+//
 
 let editObject = null;
-let editState = 0;
-let objInfo = { object: '', body: 0, x: 0.0, y: 0.0, z: 0.0, rx: 0.0, ry: 0.0, rz: 0.0 };
-let player = mp.players.local;
+let editState = MODE_MOVE;
+let objInfo = { object: '', body: 0, bodyIndex: 0, bodyName: '', x: 0.0, y: 0.0, z: 0.0, rx: 0.0, ry: 0.0, rz: 0.0 };
 
-mp.events.add('attachObject', (object, bodyPart) => {
+var editInterval = null;
+var editBrowser = null;
+var editCamera = null;
 
-    if(editObject != null) return mp.gui.chat.push("You are already editting an object!");
+mp.gui.chat.push(`${attachTitleChat} Use /attach [object] or TAB to open menu!`);
 
-    editObject = mp.objects.new(object, player.position, {
+//
+
+mp.events.add('attachObject', (object) => {
+
+    if(editObject != null) return mp.gui.chat.push(`${attachTitleChat} You are already editting an object!`);
+
+    if(editBrowser == null) {
+        editBrowser = mp.browsers.new('package://attach_editor/attach_editor.html');
+
+    } else {
+        editBrowser.execute('setupAttachEditor();');
+        editBrowser.active = true;
+    }
+
+    //
+    
+    editState = MODE_MOVE;
+    objInfo.object = object;
+
+    objInfo.x = objInfo.y = objInfo.z = 0.0;
+    objInfo.rx = objInfo.ry = objInfo.rz = 0.0;
+
+    player.freezePosition(true);
+    mp.gui.cursor.show(true, true);
+});
+
+mp.events.add('closeEditorAttach', () => {
+    player.freezePosition(false);
+    editBrowser.active = false;
+
+    mp.gui.cursor.show(false, false);
+    mp.events.callRemote('finishAttach', JSON.stringify({ cancel: true }));
+})
+
+mp.events.add('removeObjectAttach', (objectId) => {
+
+    // REMOVE ALL
+
+    if(objectId == -1) {
+        mp.objects.forEach(e => {
+            if(e.attach != undefined) e.destroy();
+        });
+
+        return;
+    }
+
+    //
+
+    const object = mp.objects.at(objectId);
+    if(object == null) {
+        return mp.events.callRemote('finishAttach', JSON.stringify({ cancel: true }));
+    }
+
+    mp.gui.chat.push(`${attachTitleChat} object ${object.attach.objectName} removed!`);
+    object.destroy();
+});
+
+mp.events.add('editAttachObject', (objectId) => {
+    const object = mp.objects.at(objectId);
+    if(object == null) {
+        return mp.events.callRemote('finishAttach', JSON.stringify({ cancel: true }));
+    }
+
+    mp.gui.cursor.show(false, false);
+
+    //
+
+    editObject = object;
+    objInfo.body = object.attach.body;
+    objInfo.object = object.attach.objectName;
+
+    objInfo.x = editObject.attach.pos.x;
+    objInfo.y = editObject.attach.pos.y;
+    objInfo.z = editObject.attach.pos.z;
+
+    objInfo.rx = editObject.attach.rot.x;
+    objInfo.ry = editObject.attach.rot.y;
+    objInfo.rz = editObject.attach.rot.z;
+
+    objInfo.boneName = editObject.attach.boneName;
+    objInfo.boneIndex = editObject.attach.boneIndex;
+
+    setupCamera(object.attach.boneIndex);
+});
+
+mp.events.add('startAttachObject', (boneIndex, boneName) => {
+    mp.gui.chat.push(`${attachTitleChat} You start the attach editor!`);
+    mp.gui.cursor.show(false, false);
+
+    const hashModel = mp.game.joaat(objInfo.object);
+
+    editObject = mp.objects.new(hashModel, player.position, {
         rotation: new mp.Vector3(0, 0, 0),
         alpha: 255,
         dimension: player.dimension
     });
 
-    editState = 0;
+    if(editObject == null) {
+        mp.events.callRemote('finishAttach', JSON.stringify({ cancel: true }));
+        editBrowser.active = false;
 
-    objInfo.object = object;
-    objInfo.x = 0.0;
-    objInfo.y = 0.0;
-    objInfo.z = 0.0;
-    objInfo.rx = 0.0;
-    objInfo.ry = 0.0;
-    objInfo.rz = 0.0;
+        player.freezePosition(false);
 
-    mp.players.local.freezePosition(true);
+        return mp.gui.chat.push(`${attachTitleChat} invalid object!`);
+    }
 
-    setTimeout(function() {
+    //
 
-        objInfo.body = player.getBoneIndex(bodyPart);
+    setTimeout(() => {
+
+        objInfo.bodyName = boneName;
+        objInfo.boneIndex = boneIndex;
+        objInfo.body = player.getBoneIndex(boneIndex);
         editObject.attachTo(player.handle, objInfo.body, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, true, false, false, false, 2, true);
+
+        editObject.attach = { bodyName: boneName, body: objInfo.body, boneIndex: boneIndex, objectName: objInfo.object, pos: {x: 0.0, y: 0.0, z: 0.0 }, rot: {x: 0.0, y: 0.0, z: 0.0 } };
+
+        // CAMERA
+
+        setupCamera(boneIndex);
     
     }, 200);
-});
-
-mp.events.add('render', () => {
-    if(editObject == null) return;
-
-    let msg = 'Editting: ~y~' +stateName[editState];
-
-    mp.game.graphics.drawText(msg, [0.8, 0.40],
-    {
-        font: 4,
-        color: [255, 255, 255, 255],
-        scale: [0.7, 0.7],
-        outline: true
-    });
-
-    //
-
-    msg = 'UP: ~g~+X~w~ | DOWN: ~g~-X~w~\nRIGHT: ~g~+Y~w~ | LEFT: ~g~-Y~w~\nPAGE UP: ~g~+Z~w~ | PAGE DOWN: ~g~-Z~w~';
-
-    mp.game.graphics.drawText(msg, [0.8, 0.5],
-    {
-        font: 4,
-        color: [255, 255, 255, 255],
-        scale: [0.7, 0.7],
-        outline: true
-    });
-
-    //
-
-    let change = (editState == 0) ? ('rot') : ('pos');
-    msg = 'Change to ' +change+ ': ~g~ALT~w~\nFinish: ~r~SPACE BAR';
-
-    mp.game.graphics.drawText(msg, [0.8, 0.65],
-    {
-        font: 4,
-        color: [255, 255, 255, 255],
-        scale: [0.7, 0.7],
-        outline: true
-    });
-});
-
-// KEYS
-
-var keyState = false;
-var keyPressed = null;
-var keyIterval = null;
-
-mp.keys.bind(0x26, true, function() { // UP
-
-    if(editObject == null || keyState == true || mp.gui.cursor.visible) return;
-
-    keyState = true;
-    
-    if(editState == 0) { keyPressed = 0; }
-    else { keyPressed = 6; }
-
-    editAttachObject();
-    keyIterval = setInterval(editAttachObject, 100);
-});
-
-mp.keys.bind(0x26, false, function() { // UP
-    if(editObject == null) return;
-
-    keyState = false;
-    clearInterval(keyIterval);
-});
-
-mp.keys.bind(0x28, true, function() { // DOWN
-
-    if(editObject == null || keyState == true || mp.gui.cursor.visible) return;
-
-    keyState = true;
-    
-    if(editState == 0) { keyPressed = 1; }
-    else { keyPressed = 7; }
-
-    editAttachObject();
-    keyIterval = setInterval(editAttachObject, 100);
-});
-
-mp.keys.bind(0x28, false, function() { // DOWN
-    if(editObject == null) return;
-
-    keyState = false;
-    clearInterval(keyIterval);
-});
-
-mp.keys.bind(0x27, true, function() { // RIGHT
-
-    if(editObject == null || keyState == true || mp.gui.cursor.visible) return;
-
-    keyState = true;
-    
-    if(editState == 0) { keyPressed = 2; }
-    else { keyPressed = 8; }
-
-    editAttachObject();
-    keyIterval = setInterval(editAttachObject, 100);
-});
-
-mp.keys.bind(0x27, false, function() { // RIGHT
-    if(editObject == null) return;
-
-    keyState = false;
-    clearInterval(keyIterval);
-});
-
-mp.keys.bind(0x25, true, function() { // LEFT
-
-    if(editObject == null || keyState == true || mp.gui.cursor.visible) return;
-
-    keyState = true;
-    
-    if(editState == 0) { keyPressed = 3; }
-    else { keyPressed = 9; }
-
-    editAttachObject();
-    keyIterval = setInterval(editAttachObject, 100);
-});
-
-mp.keys.bind(0x25, false, function() { // LEFT
-    if(editObject == null) return;
-
-    keyState = false;
-    clearInterval(keyIterval);
-});
-
-mp.keys.bind(0x21, true, function() { // PAGE UP
-
-    if(editObject == null || keyState == true || mp.gui.cursor.visible) return;
-
-    keyState = true;
-    
-    if(editState == 0) { keyPressed = 4; }
-    else { keyPressed = 10; }
-
-    editAttachObject();
-    keyIterval = setInterval(editAttachObject, 100);
-});
-
-mp.keys.bind(0x21, false, function() { // PAGE UP
-    if(editObject == null) return;
-
-    keyState = false;
-    clearInterval(keyIterval);
-});
-
-mp.keys.bind(0x22, true, function() { // PAGE DOWN
-
-    if(editObject == null || keyState == true || mp.gui.cursor.visible) return;
-
-    keyState = true;
-    
-    if(editState == 0) { keyPressed = 5; }
-    else { keyPressed = 11; }
-
-    editAttachObject();
-    keyIterval = setInterval(editAttachObject, 100);
-});
-
-mp.keys.bind(0x22, false, function() { // PAGE DOWN
-    if(editObject == null) return;
-
-    keyState = false;
-    clearInterval(keyIterval);
-});
-
-mp.keys.bind(0X12, !1, function() { // ALT
-
-    if(editObject == null || mp.gui.cursor.visible) return;
-
-    editState = (editState == 0) ? (1) : (0);
-});
-
-mp.keys.bind(0x20, !1, function() { // SPACE
-
-    if(editObject == null || mp.gui.cursor.visible) return;
-
-    mp.events.callRemote('finishAttach', JSON.stringify(objInfo));
-
-    editObject.destroy();
-    editObject = null;
-});
-
-mp.keys.bind(0x08, !1, function() { // BACKSPACE
-
-    if(editObject == null || mp.gui.cursor.visible) return;
-
-    objInfo.x = 0.0;
-    objInfo.y = 0.0;
-    objInfo.z = 0.0;
-    objInfo.rx = 0.0; 
-    objInfo.ry = 0.0;
-    objInfo.rz = 0.0;
-
-    editAttachObject();
-
-    mp.gui.chat.push('RESET OBJECT');
 });
 
 //
 
 function editAttachObject() {
 
-    // POSITION
+    if(editObject == null) return;
 
-    if(keyPressed == 0) { objInfo.x += 0.01; }
-    else if(keyPressed == 1) { objInfo.x -= 0.01; }
-    else if(keyPressed == 2) { objInfo.y += 0.01; }
-    else if(keyPressed == 3) { objInfo.y -= 0.01; }
-    else if(keyPressed == 4) { objInfo.z += 0.01; }
-    else if(keyPressed == 5) { objInfo.z -= 0.01; }
+    var pos = { x: 0.0, y: 0.0, z: 0.0 };
+    var speed = 1.0;
 
-    // ROTATION
+    const movement = editState == MODE_MOVE ? 0.01 : 1.0;
 
-    else if(keyPressed == 6) { objInfo.rx += 1.0; }
-    else if(keyPressed == 7) { objInfo.rx -= 1.0; }
-    else if(keyPressed == 8) { objInfo.ry += 1.0; }
-    else if(keyPressed == 9) { objInfo.ry -= 1.0; }
-    else if(keyPressed == 10) { objInfo.rz += 1.0; }
-    else if(keyPressed == 11) { objInfo.rz -= 1.0; }
+    if(mp.keys.isDown(keyMovement.Shift) === true) {
+        speed = 2.0;
+    }
+
+    if(mp.keys.isDown(keyMovement.Left) === true) {
+        pos.x -= movement;
+    }
+    if(mp.keys.isDown(keyMovement.Right) === true) {
+        pos.x += movement;
+    }
+    if(mp.keys.isDown(keyMovement.UP) === true) {
+        pos.y += movement;
+    }
+    if(mp.keys.isDown(keyMovement.Down) === true) {
+        pos.y -= movement;
+    }
+    if(mp.keys.isDown(keyMovement.PageUp) === true) {
+        pos.z += movement;
+    }
+    if(mp.keys.isDown(keyMovement.PageDown) === true) {
+        pos.z -= movement;
+    }
+
+    //
+
+    pos.x *= speed;
+    pos.y *= speed;
+    pos.z *= speed;
+
+    if(editState == MODE_MOVE) {
+        objInfo.x += pos.x;
+        objInfo.y += pos.y;
+        objInfo.z += pos.z;
+    
+        editBrowser.execute(`updateObjectCoords(${objInfo.x}, ${objInfo.y}, ${objInfo.z});`);
+
+    } else {
+        objInfo.rx += pos.x;
+        objInfo.ry += pos.y;
+        objInfo.rz += pos.z;
+    
+        editBrowser.execute(`updateObjectRot(${objInfo.rx}, ${objInfo.ry}, ${objInfo.rz});`);
+    }
+
+    // RESET SINGLE COORD
+
+    if(mp.keys.isDown(keyMovement.AltLeft) == true) {
+
+        if(mp.keys.isDown(keyMovement.X) === true) {
+
+            if(editState == MODE_MOVE && objInfo.x != 0.0) { 
+                objInfo.x = 0.0; 
+                mp.gui.chat.push(`${attachTitleChat} Reset X coord!`);
+
+            } else if(objInfo.rx != 0.0) {
+                objInfo.rx = 0.0;
+                mp.gui.chat.push(`${attachTitleChat} Reset X rot!`);
+            }
+        }
+
+        if(mp.keys.isDown(keyMovement.Y) === true) {
+
+            if(editState == MODE_MOVE && objInfo.y != 0.0) { 
+                objInfo.y = 0.0; 
+                mp.gui.chat.push(`${attachTitleChat} Reset Y coord!`);
+
+            } else if(objInfo.ry != 0.0) {
+                objInfo.ry = 0.0;
+                mp.gui.chat.push(`${attachTitleChat} Reset Y rot!`);
+            }
+        }
+        if(mp.keys.isDown(keyMovement.Z) === true) {
+
+            if(editState == MODE_MOVE && objInfo.z != 0.0) { 
+                objInfo.z = 0.0; 
+                mp.gui.chat.push(`${attachTitleChat} Reset Z coord!`);
+
+            } else if(objInfo.rz != 0.0) {
+                objInfo.rz = 0.0;
+                mp.gui.chat.push(`${attachTitleChat} Reset Z rot!`);
+            }
+        }
+    }
+
+    //
 
     editObject.attachTo(
         player.handle,
@@ -272,4 +281,140 @@ function editAttachObject() {
         2,
         true
     );
+}
+
+// KEYS
+
+mp.keys.bind(keysEditor.Enter, true, function() {
+    if(editObject == null || mp.gui.cursor.visible) return;
+
+    mp.gui.chat.push(`${attachTitleChat} FINISH`);
+
+    editObject.attach.pos.x = objInfo.x;
+    editObject.attach.pos.y = objInfo.y;
+    editObject.attach.pos.z = objInfo.z;
+
+    editObject.attach.rot.x = objInfo.rx;
+    editObject.attach.rot.y = objInfo.ry;
+    editObject.attach.rot.z = objInfo.rz;
+
+    editObject.attach.editDate = new Date();
+
+    mp.events.callRemote('finishAttach', JSON.stringify(objInfo));
+    finishEdition();
+});
+
+mp.keys.bind(keysEditor.Space, true, function() {
+    if(editObject == null || mp.gui.cursor.visible) return;
+
+    mp.gui.chat.push(`${attachTitleChat} RESET`);
+
+    objInfo.x = objInfo.y = objInfo.z = 0.0;
+    objInfo.rx = objInfo.ry = objInfo.rz = 0.0;
+});
+
+mp.keys.bind(keysEditor.R, true, function() {
+    if(editObject == null || mp.gui.cursor.visible) return;
+
+    if(editState == MODE_MOVE) {
+        editState = MODE_ROT;
+        editBrowser.execute('changeModeEditor(\'ROT\');');
+
+    } else {
+        editState = MODE_MOVE;
+        editBrowser.execute('changeModeEditor(\'MOVEMENT\');');
+    }
+});
+
+mp.keys.bind(keysEditor.Back, true, function() {
+    if(editObject == null || mp.gui.cursor.visible) return;
+
+    mp.gui.chat.push(`${attachTitleChat} CANCEL`);
+
+    mp.events.callRemote('finishAttach', JSON.stringify({ cancel: true }));
+    finishEdition(true);
+});
+
+mp.keys.bind(keysEditor.L, true, function() {
+    if(editObject == null || mp.gui.cursor.visible) return;
+
+    if(editCamera.getFov() == DEFAULT_CAMERA_FOV) editCamera.setFov(DEFAULT_CAMERA_FOV * 2);
+    else {
+        editCamera.setFov(DEFAULT_CAMERA_FOV);
+    }
+});
+
+mp.keys.bind(keysEditor.TAB, true, function() {
+    if(editObject != null || mp.gui.cursor.visible) return;
+
+    var objects = [];
+    
+    mp.objects.forEach(e => {
+        if(e.attach == undefined) return;
+        objects.push({ id: e.id, bodyName: e.attach.bodyName, objectName: e.attach.objectName, editDate: e.attach.editDate });
+    });
+    
+    //if(objects.length == 0) return mp.gui.chat.push(`${attachTitleChat} there are no attached objects!`);
+
+    //
+        
+    if(editBrowser == null) {
+        editBrowser = mp.browsers.new('package://attach_editor/attach_editor.html');
+    }
+
+    objects = JSON.stringify(objects);
+    editBrowser.execute(`objectsEdit = JSON.parse('${objects}'); setupListAttachEdit();`);
+    editBrowser.active = true;
+
+    //
+
+    player.freezePosition(true);
+    mp.gui.cursor.show(true, true);
+
+    mp.players.callRemote('startEditAttachServer');
+});
+
+// RENDER
+
+mp.events.add('render', () => {
+    if(editObject != null) {
+        mp.game.controls.disableAllControlActions(0);
+        mp.game.controls.disableAllControlActions(1);
+    }
+});
+
+// UTILS
+
+function finishEdition(remove=false) {
+    if(editCamera != null) {
+        mp.game.cam.renderScriptCams(false, true, 1000, true, false);
+        editCamera.destroy();
+    }
+
+    if(editInterval != null) clearInterval(editInterval);
+
+    if(remove == true) editObject.destroy();
+    editObject = editInterval = editCamera = null;
+
+    player.freezePosition(false);
+    editBrowser.active = false;
+}
+
+function setupCamera(boneIndex) {
+    
+    const pos = player.getWorldPositionOfBone(objInfo.body);
+    const player_pos = player.getCoords(true);
+    const forward_x = player.getForwardX();
+    const forward_y = player.getForwardY();
+
+    editCamera = mp.cameras.new('attach_editor_camera', new mp.Vector3(player_pos.x + forward_x, player_pos.y + forward_y, pos.z), new mp.Vector3(0, 0, 0), DEFAULT_CAMERA_FOV);
+
+    editCamera.setActive(true);
+    editCamera.pointAtPedBone(player.handle, boneIndex, 0.0, 0.0, 0.0, true);
+
+    mp.game.cam.renderScriptCams(true, true, 1000, true, false);
+
+    //
+
+    editInterval = setInterval(editAttachObject, 50);
 }
