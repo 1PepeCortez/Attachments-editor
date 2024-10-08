@@ -20,6 +20,8 @@
 
 <kbd>R</kbd> · Key to change mode between pos and rot.
 
+<kbd>C</kbd> · Key to change mode between camera_pos and pos.
+
 <kbd>L</kbd> · Key to change the camera's fov.
 
 <kbd>&uarr;</kbd> <kbd>&darr;</kbd> · Edit pos/rot X the current object.

@@ -4,31 +4,33 @@ const stateName = ['Position', 'Rotation'];
 const attachTitleChat = '!{#4dd374}[ATTACH_EDITOR]!{#FFFFFF}';
 
 const keysEditor = {
-    R: 0x52, // CHANGE MODE
-    Enter: 0x0D, // FINISH
-    Back: 0x08, // CANCEL
-    Space: 0x20, // RESET
-    L: 0x4C, // CHANGE FOV
-    TAB: 0x09, // EDIT ATTACH
+    C:      0x43, // MOVE CAMERA
+    R:      0x52, // CHANGE MODE
+    Enter:  0x0D, // FINISH
+    Back:   0x08, // CANCEL
+    Space:  0x20, // RESET
+    L:      0x4C, // CHANGE FOV
+    TAB:    0x09, // EDIT ATTACH
 };
 
 const keyMovement = {
-    Left: 0x25,
-    UP: 0x26,
-    Right: 0x27,
-    Down: 0x28,
-    PageUp: 0x21,
-    PageDown: 0x22,
-    Shift: 0x10,
+    Left:       0x25,
+    UP:         0x26,
+    Right:      0x27,
+    Down:       0x28,
+    PageUp:     0x21,
+    PageDown:   0x22,
+    Shift:      0x10,
 
-    AltLeft: 0xA4,
-    X: 0x58,
-    Y: 0x59,
-    Z: 0x5A,
+    AltLeft:    0xA4,
+    X:          0x58,
+    Y:          0x59,
+    Z:          0x5A,
 };
 
-const MODE_MOVE = 0;
-const MODE_ROT = 1;
+const MODE_MOVE     = 0;
+const MODE_ROT      = 1;
+const MODE_CAMERA   = 2;
 
 const DEFAULT_CAMERA_FOV = 40;
 
@@ -37,6 +39,7 @@ const DEFAULT_CAMERA_FOV = 40;
 let editObject = null;
 let editState = MODE_MOVE;
 let objInfo = { object: '', body: 0, bodyIndex: 0, bodyName: '', x: 0.0, y: 0.0, z: 0.0, rx: 0.0, ry: 0.0, rz: 0.0 };
+let camaraPos = { x: 0.0, y: 0.0, z: 0.0 };
 
 var editInterval = null;
 var editBrowser = null;
@@ -177,30 +180,16 @@ function editAttachObject() {
     var pos = { x: 0.0, y: 0.0, z: 0.0 };
     var speed = 1.0;
 
-    const movement = editState == MODE_MOVE ? 0.01 : 1.0;
+    const movement = editState == MODE_ROT ? 1.0 : 0.01 ;
 
-    if(mp.keys.isDown(keyMovement.Shift) === true) {
-        speed = 2.0;
-    }
+    if(mp.keys.isDown(keyMovement.Shift) === true) speed = 2.0;
 
-    if(mp.keys.isDown(keyMovement.Left) === true) {
-        pos.x -= movement;
-    }
-    if(mp.keys.isDown(keyMovement.Right) === true) {
-        pos.x += movement;
-    }
-    if(mp.keys.isDown(keyMovement.UP) === true) {
-        pos.y += movement;
-    }
-    if(mp.keys.isDown(keyMovement.Down) === true) {
-        pos.y -= movement;
-    }
-    if(mp.keys.isDown(keyMovement.PageUp) === true) {
-        pos.z += movement;
-    }
-    if(mp.keys.isDown(keyMovement.PageDown) === true) {
-        pos.z -= movement;
-    }
+    if(mp.keys.isDown(keyMovement.Left) === true)       pos.x -= movement;
+    if(mp.keys.isDown(keyMovement.Right) === true)      pos.x += movement;
+    if(mp.keys.isDown(keyMovement.UP) === true)         pos.y += movement;
+    if(mp.keys.isDown(keyMovement.Down) === true)       pos.y -= movement;
+    if(mp.keys.isDown(keyMovement.PageUp) === true)     pos.z += movement;
+    if(mp.keys.isDown(keyMovement.PageDown) === true)   pos.z -= movement;
 
     //
 
@@ -215,12 +204,21 @@ function editAttachObject() {
     
         editBrowser.execute(`updateObjectCoords(${objInfo.x}, ${objInfo.y}, ${objInfo.z});`);
 
-    } else {
+    } else if(editState == MODE_ROT) {
         objInfo.rx += pos.x;
         objInfo.ry += pos.y;
         objInfo.rz += pos.z;
     
         editBrowser.execute(`updateObjectRot(${objInfo.rx}, ${objInfo.ry}, ${objInfo.rz});`);
+
+    } else {
+
+        camaraPos.x += pos.x;
+        camaraPos.y += pos.y;
+        camaraPos.z += pos.z;
+
+        editCamera.setCoord(camaraPos.x, camaraPos.y, camaraPos.z);
+        return;
     }
 
     // RESET SINGLE COORD
@@ -320,9 +318,22 @@ mp.keys.bind(keysEditor.R, true, function() {
         editState = MODE_ROT;
         editBrowser.execute('changeModeEditor(\'ROT\');');
 
-    } else {
+    } else if(editState == MODE_ROT) {
         editState = MODE_MOVE;
         editBrowser.execute('changeModeEditor(\'MOVEMENT\');');
+    }
+});
+
+mp.keys.bind(keysEditor.C, true, function() {
+    if(editObject == null || mp.gui.cursor.visible) return;
+
+    if(editState == MODE_CAMERA) {
+        editState = MODE_MOVE;
+        editBrowser.execute('changeModeEditor(\'MOVEMENT\');');
+
+    } else {
+        editState = MODE_CAMERA;
+        editBrowser.execute('changeModeEditor(\'CAMERA\');');
     }
 });
 
@@ -402,12 +413,16 @@ function finishEdition(remove=false) {
 
 function setupCamera(boneIndex) {
     
-    const pos = player.getWorldPositionOfBone(objInfo.body);
-    const player_pos = player.getCoords(true);
-    const forward_x = player.getForwardX();
-    const forward_y = player.getForwardY();
+    const pos           = player.getWorldPositionOfBone(objInfo.body);
+    const player_pos    = player.getCoords(true);
+    const forward_x     = player.getForwardX();
+    const forward_y     = player.getForwardY();
 
-    editCamera = mp.cameras.new('attach_editor_camera', new mp.Vector3(player_pos.x + forward_x, player_pos.y + forward_y, pos.z), new mp.Vector3(0, 0, 0), DEFAULT_CAMERA_FOV);
+    camaraPos.x = player_pos.x + forward_x;
+    camaraPos.y = player_pos.y + forward_y;
+    camaraPos.z = pos.z;
+
+    editCamera = mp.cameras.new('attach_editor_camera', new mp.Vector3(camaraPos.x, camaraPos.y, pos.z), new mp.Vector3(0, 0, 0), DEFAULT_CAMERA_FOV);
 
     editCamera.setActive(true);
     editCamera.pointAtPedBone(player.handle, boneIndex, 0.0, 0.0, 0.0, true);
