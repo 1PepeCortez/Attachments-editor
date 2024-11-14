@@ -1,10 +1,11 @@
-# Attachments-editor v2
+# Attachments-editor v2.2
 
 - Menu to show and select between all bones avaliable (https://wiki.rage.mp/index.php?title=Bones)
 - Camera focus on the bone you select.
 - Added more keys to edit the object.
 - Menu to edit or remove objects that were already placed.
 - Object information save on *attachments.txt* on serverside.
+- You can move the camera for better for a better position
 
 ## Keys
 
@@ -16,11 +17,11 @@
 
 <kbd>Cancel</kbd> · Key to cancel the editing the current object.
 
-<kbd>Space</kbd> · Key to reset the pos and rot the current object.
+<kbd>K</kbd> · Key to reset the pos and rot the current object.
 
 <kbd>R</kbd> · Key to change mode between pos and rot.
 
-<kbd>C</kbd> · Key to change mode between camera_pos and pos.
+<kbd>Space + Mouse</kbd> · Key to enable camera movement.
 
 <kbd>L</kbd> · Key to change the camera's fov.
 

@@ -4,11 +4,10 @@ const stateName = ['Position', 'Rotation'];
 const attachTitleChat = '!{#4dd374}[ATTACH_EDITOR]!{#FFFFFF}';
 
 const keysEditor = {
-    C:      0x43, // MOVE CAMERA
     R:      0x52, // CHANGE MODE
     Enter:  0x0D, // FINISH
     Back:   0x08, // CANCEL
-    Space:  0x20, // RESET
+    K:      0x20, // RESET
     L:      0x4C, // CHANGE FOV
     TAB:    0x09, // EDIT ATTACH
 };
@@ -26,13 +25,17 @@ const keyMovement = {
     X:          0x58,
     Y:          0x59,
     Z:          0x5A,
+
+    Espacio:    0x20,
 };
 
 const MODE_MOVE     = 0;
 const MODE_ROT      = 1;
-const MODE_CAMERA   = 2;
 
 const DEFAULT_CAMERA_FOV = 40;
+
+const defaultCamera = mp.cameras.new("gameplay");
+const ROT_XYZ = 5;
 
 //
 
@@ -177,13 +180,41 @@ function editAttachObject() {
 
     if(editObject == null) return;
 
+    //player.clearTasks();
+    //mp.game.invoke('0x176CECF6F920D707', player.handle); // CLEAR_PED_SECONDARY_TASK
+    mp.game.invoke('0xC11C18092C5530DC', player.handle, false); // SET_PED_CAN_HEAD_IK
+    mp.game.invoke('0x6C3B4D6D13B4C841', player.handle, false); // SET_PED_CAN_ARM_IK
+    mp.game.invoke('0xF2B7106D37947CE0', player.handle, false); // SET_PED_CAN_TORSO_IK
+    mp.game.invoke('0xBAF20C5432058024', player.handle, false); // SET_PED_CAN_PLAY_GESTURE_ANIMS
+    mp.game.invoke('0xF833DDBA3B104D43', player.handle, false, false); // SET_PED_CAN_PLAY_VISEME_ANIMS
+    mp.game.invoke('0x6373D1349925A70E', player.handle, false); // SET_PED_CAN_PLAY_AMBIENT_ANIMS
+    mp.game.invoke('0x0EB0585D15254740', player.handle, false); // SET_PED_CAN_PLAY_AMBIENT_BASE_ANIMS
+
+    // CAMERA
+
+    if(mp.keys.isDown(keyMovement.Espacio) === true) {
+
+        let dist = editCamera.getFov() == DEFAULT_CAMERA_FOV ? 1.2 : 2.0;
+        
+        const default_pos = defaultCamera.getCoord();
+        const default_rot = defaultCamera.getRot(ROT_XYZ);
+        const position = editObject.getCoords(true);
+
+        const angle = default_rot.z * Math.PI / 180.0;
+
+        const x = position.x + dist * Math.sin(angle);
+        const y = position.y + dist * Math.cos(angle);
+
+        editCamera.setCoord(x, y, default_pos.z);
+        return;
+    }
+
     var pos = { x: 0.0, y: 0.0, z: 0.0 };
     var speed = 1.0;
 
     const movement = editState == MODE_ROT ? 1.0 : 0.01 ;
 
-    if(mp.keys.isDown(keyMovement.Shift) === true) speed = 2.0;
-
+    if(mp.keys.isDown(keyMovement.Shift) === true)      speed = 2.0;
     if(mp.keys.isDown(keyMovement.Left) === true)       pos.x -= movement;
     if(mp.keys.isDown(keyMovement.Right) === true)      pos.x += movement;
     if(mp.keys.isDown(keyMovement.UP) === true)         pos.y += movement;
@@ -210,15 +241,6 @@ function editAttachObject() {
         objInfo.rz += pos.z;
     
         editBrowser.execute(`updateObjectRot(${objInfo.rx}, ${objInfo.ry}, ${objInfo.rz});`);
-
-    } else {
-
-        camaraPos.x += pos.x;
-        camaraPos.y += pos.y;
-        camaraPos.z += pos.z;
-
-        editCamera.setCoord(camaraPos.x, camaraPos.y, camaraPos.z);
-        return;
     }
 
     // RESET SINGLE COORD
@@ -302,7 +324,7 @@ mp.keys.bind(keysEditor.Enter, true, function() {
     finishEdition();
 });
 
-mp.keys.bind(keysEditor.Space, true, function() {
+mp.keys.bind(keysEditor.K, true, function() {
     if(editObject == null || mp.gui.cursor.visible) return;
 
     mp.gui.chat.push(`${attachTitleChat} RESET`);
@@ -324,19 +346,6 @@ mp.keys.bind(keysEditor.R, true, function() {
     }
 });
 
-mp.keys.bind(keysEditor.C, true, function() {
-    if(editObject == null || mp.gui.cursor.visible) return;
-
-    if(editState == MODE_CAMERA) {
-        editState = MODE_MOVE;
-        editBrowser.execute('changeModeEditor(\'MOVEMENT\');');
-
-    } else {
-        editState = MODE_CAMERA;
-        editBrowser.execute('changeModeEditor(\'CAMERA\');');
-    }
-});
-
 mp.keys.bind(keysEditor.Back, true, function() {
     if(editObject == null || mp.gui.cursor.visible) return;
 
@@ -349,10 +358,8 @@ mp.keys.bind(keysEditor.Back, true, function() {
 mp.keys.bind(keysEditor.L, true, function() {
     if(editObject == null || mp.gui.cursor.visible) return;
 
-    if(editCamera.getFov() == DEFAULT_CAMERA_FOV) editCamera.setFov(DEFAULT_CAMERA_FOV * 2);
-    else {
-        editCamera.setFov(DEFAULT_CAMERA_FOV);
-    }
+    if(editCamera.getFov() == DEFAULT_CAMERA_FOV)   editCamera.setFov(DEFAULT_CAMERA_FOV * 2);
+    else                                            editCamera.setFov(DEFAULT_CAMERA_FOV);
 });
 
 mp.keys.bind(keysEditor.TAB, true, function() {
@@ -388,15 +395,22 @@ mp.keys.bind(keysEditor.TAB, true, function() {
 // RENDER
 
 mp.events.add('render', () => {
-    if(editObject != null) {
-        mp.game.controls.disableAllControlActions(0);
-        mp.game.controls.disableAllControlActions(1);
-    }
+    if(editObject == null || mp.keys.isDown(keyMovement.Espacio)) return;
+    
+    mp.game.controls.disableAllControlActions(0);
+    mp.game.controls.disableAllControlActions(1);
+
+    mp.game.controls.disableAllControlActions(INPUT_MOVER);
 });
 
 // UTILS
 
 function finishEdition(remove=false) {
+    
+    mp.game.cam.setGameplayCamRelativeHeading(0.0);
+
+    //
+
     if(editCamera != null) {
         mp.game.cam.renderScriptCams(false, true, 1000, true, false);
         editCamera.destroy();
