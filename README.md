@@ -5,7 +5,7 @@
 - Added more keys to edit the object.
 - Menu to edit or remove objects that were already placed.
 - Object information save on *attachments.txt* on serverside.
-- You can move the camera for better for a better position
+- You can move the camera for a better position
 
 ## Keys
 
